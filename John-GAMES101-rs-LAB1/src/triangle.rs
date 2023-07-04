@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use std::process::exit;
 use nalgebra::{Vector2, Vector3, Vector4};
+use std::process::exit;
 
 pub struct Triangle {
     pub v: [Vector3<f64>; 3],
@@ -34,7 +34,11 @@ impl Triangle {
         self.tex_coords[ind] = Vector2::new(s, t);
     }
     pub fn to_vector4(&self) -> [Vector4<f64>; 3] {
-        let v: Vec<Vector4<f64>> = self.v.iter().map(|vec| Vector4::new(vec[0], vec[1], vec[2], 1.0)).collect();
+        let v: Vec<Vector4<f64>> = self
+            .v
+            .iter()
+            .map(|vec| Vector4::new(vec[0], vec[1], vec[2], 1.0))
+            .collect();
         [v[0], v[1], v[2]]
     }
     pub fn get_color(&self) -> Vector3<f64> {

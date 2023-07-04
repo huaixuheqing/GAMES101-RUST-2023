@@ -1,13 +1,13 @@
-mod triangle;
 mod rasterizer;
+mod triangle;
 mod utils;
 extern crate opencv;
-use std::env;
-use nalgebra::{Vector3};
+use crate::rasterizer::{Primitive, Rasterizer};
+use nalgebra::Vector3;
 use opencv::core::Vector;
 use opencv::highgui::{imshow, wait_key};
 use opencv::imgcodecs::imwrite;
-use crate::rasterizer::{Primitive, Rasterizer};
+use std::env;
 use utils::*;
 
 fn main() {
@@ -25,9 +25,11 @@ fn main() {
 
     let mut r = Rasterizer::new(700, 700);
     let eye_pos = Vector3::new(0.0, 0.0, 5.0);
-    let pos = vec![Vector3::new(2.0, 0.0, -2.0),
-                   Vector3::new(0.0, 2.0, -2.0),
-                   Vector3::new(-2.0, 0.0, -2.0)];
+    let pos = vec![
+        Vector3::new(2.0, 0.0, -2.0),
+        Vector3::new(0.0, 2.0, -2.0),
+        Vector3::new(-2.0, 0.0, -2.0),
+    ];
     let ind = vec![Vector3::new(0, 1, 2)];
 
     let pos_id = r.load_position(&pos);
@@ -65,7 +67,7 @@ fn main() {
             angle += 10.0;
         } else if k == 'd' as i32 {
             angle -= 10.0;
-        } 
+        }
         frame_count += 1;
     }
 }
