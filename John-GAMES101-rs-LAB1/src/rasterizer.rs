@@ -24,6 +24,7 @@ pub struct Rasterizer {
     model: Matrix4<f64>,
     view: Matrix4<f64>,
     projection: Matrix4<f64>,
+    arbitrary_rotation: Matrix4<f64>,
     pos_buf: HashMap<usize, Vec<V3d>>,
     ind_buf: HashMap<usize, Vec<Vector3<usize>>>,
 
@@ -146,6 +147,11 @@ impl Rasterizer {
     pub fn set_projection(&mut self, projection: Matrix4<f64>) {
         self.projection = projection;
     }
+
+    pub fn set_arbitrary_rotation(&mut self, arbitrary_rotation: Matrix4<f64>) {
+        self.arbitrary_rotation = arbitrary_rotation;
+    }
+
     fn get_next_id(&mut self) -> usize {
         let res = self.next_id;
         self.next_id += 1;
@@ -167,7 +173,7 @@ impl Rasterizer {
         let buf = &self.pos_buf[&pos_buffer.0];
         let ind: &Vec<Vector3<usize>> = &self.ind_buf[&ind_buffer.0];
 
-        let mvp = self.projection * self.view * self.model;
+        let mvp = self.projection * self.view * self.model * self.arbitrary_rotation;
 
         for i in ind {
             let t = Rasterizer::get_triangle(self.width, self.height, buf, mvp, i);

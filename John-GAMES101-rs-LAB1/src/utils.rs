@@ -1,9 +1,17 @@
-use nalgebra::{Matrix4, Vector3};
+use nalgebra::{Matrix3, Matrix4, Vector3};
 use opencv::core::{Mat, MatTraitConst};
 use opencv::imgproc::{cvt_color, COLOR_RGB2BGR};
 use std::os::raw::c_void;
 
 pub type V3d = Vector3<f64>;
+
+pub(crate) fn get_rotation(axis: V3d, angle:f64) -> Matrix4<f64> {
+    let cos_alpha = angle.to_radians().cos();
+    let sin_alpha = angle.to_radians().sin();
+    let result = cos_alpha * Matrix3::identity() + (1.0 - cos_alpha) * axis * axis.transpose() + sin_alpha * Matrix3::new(0.0,-axis.x,axis.y,axis.z,0.0,-axis.x,-axis.y,axis.x,0.0);
+    let matrix4: Matrix4<f64> = result.to_homogeneous();
+    matrix4
+}
 
 pub(crate) fn get_view_matrix(eye_pos: V3d) -> Matrix4<f64> {
     let mut view: Matrix4<f64> = Matrix4::identity();

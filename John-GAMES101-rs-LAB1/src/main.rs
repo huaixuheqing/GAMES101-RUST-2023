@@ -12,6 +12,7 @@ use utils::*;
 
 fn main() {
     let mut angle = 0.0;
+    let mut arbitrary_rotation_angle = 0.0;
     let mut command_line = false;
     let mut filename = "output.png";
     let argv: Vec<String> = env::args().collect();
@@ -42,6 +43,7 @@ fn main() {
         r.set_model(get_model_matrix(angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1.0, 0.1, 50.0));
+        r.set_arbitrary_rotation(get_rotation(V3d::new(1.0,2.0,3.0),arbitrary_rotation_angle));
         r.draw_triangle(pos_id, ind_id, Primitive::Triangle);
 
         let frame_buffer = r.frame_buffer();
@@ -55,6 +57,7 @@ fn main() {
         r.set_model(get_model_matrix(angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1.0, 0.1, 50.0));
+        r.set_arbitrary_rotation(get_rotation(V3d::new(1.0,2.0,3.0),arbitrary_rotation_angle));
         r.draw_triangle(pos_id, ind_id, Primitive::Triangle);
 
         let frame_buffer = r.frame_buffer();
@@ -67,6 +70,8 @@ fn main() {
             angle += 10.0;
         } else if k == 'd' as i32 {
             angle -= 10.0;
+        } else if k == 'r' as i32 {
+            arbitrary_rotation_angle += 10.0;
         }
         frame_count += 1;
     }
