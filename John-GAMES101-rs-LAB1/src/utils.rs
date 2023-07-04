@@ -54,10 +54,14 @@ pub(crate) fn get_projection_matrix(
         0.0,
     );
 
-    projection[(2, 2)] = 2.0 / (z_near - z_far);
+    let t = z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
+    let r = aspect_ratio * t;
+    projection[(0, 0)] = 1.0 / r;
+    projection[(1, 1)] = 1.0 / t;
+    projection[(2, 2)] = 2.0 / (z_near - z_far).abs();
     let mut projection1 = Matrix4::identity();
     projection1[(2, 3)] = -(z_near + z_far) / 2.0;
-    matrix1 * projection * projection1
+    projection * projection1 * matrix1
 }
 
 pub(crate) fn frame_buffer2cv_mat(frame_buffer: &Vec<V3d>) -> opencv::core::Mat {
@@ -69,7 +73,7 @@ pub(crate) fn frame_buffer2cv_mat(frame_buffer: &Vec<V3d>) -> opencv::core::Mat 
             frame_buffer.as_ptr() as *mut c_void,
             opencv::core::Mat_AUTO_STEP,
         )
-        .unwrap()
+            .unwrap()
     };
     let mut img = Mat::copy(&image).unwrap();
     image
