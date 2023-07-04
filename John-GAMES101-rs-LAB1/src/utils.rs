@@ -35,7 +35,7 @@ pub(crate) fn get_projection_matrix(
     let mut projection: Matrix4<f64> = Matrix4::identity();
     /*  implement your code here  */
 
-    Matrix4::new(
+    let matrix1 = Matrix4::new(
         z_near,
         0.0,
         0.0,
@@ -52,9 +52,12 @@ pub(crate) fn get_projection_matrix(
         0.0,
         1.0,
         0.0,
-    )
+    );
 
-    //projection
+    projection[(2, 2)] = 2.0 / (z_near - z_far);
+    let mut projection1 = Matrix4::identity();
+    projection1[(2, 3)] = -(z_near + z_far) / 2.0;
+    matrix1 * projection * projection1
 }
 
 pub(crate) fn frame_buffer2cv_mat(frame_buffer: &Vec<V3d>) -> opencv::core::Mat {
