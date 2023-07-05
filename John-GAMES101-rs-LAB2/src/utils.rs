@@ -6,6 +6,9 @@ use opencv::imgproc::{COLOR_RGB2BGR, cvt_color};
 pub(crate) fn get_view_matrix(eye_pos: Vector3<f64>) -> Matrix4<f64> {
     let mut view: Matrix4<f64> = Matrix4::identity();
     /*  implement what you've done in LAB1  */
+    view[(0, 3)] = -eye_pos.x;
+    view[(1, 3)] = -eye_pos.y;
+    view[(2, 3)] = -eye_pos.z;
 
     view
 }
@@ -13,6 +16,10 @@ pub(crate) fn get_view_matrix(eye_pos: Vector3<f64>) -> Matrix4<f64> {
 pub(crate) fn get_model_matrix(rotation_angle: f64) -> Matrix4<f64> {
     let mut model: Matrix4<f64> = Matrix4::identity();
     /*  implement what you've done in LAB1  */
+    model[(0, 0)] = rotation_angle.to_radians().cos();
+    model[(0, 1)] = -rotation_angle.to_radians().sin();
+    model[(1, 0)] = rotation_angle.to_radians().sin();
+    model[(1, 1)] = rotation_angle.to_radians().cos();
 
     model
 }
@@ -20,8 +27,33 @@ pub(crate) fn get_model_matrix(rotation_angle: f64) -> Matrix4<f64> {
 pub(crate) fn get_projection_matrix(eye_fov: f64, aspect_ratio: f64, z_near: f64, z_far: f64) -> Matrix4<f64> {
     let mut projection: Matrix4<f64> = Matrix4::identity();
     /*  implement what you've done in LAB1  */
+    let matrix1 = Matrix4::new(
+        z_near,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        z_near,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        z_near + z_far,
+        -z_near * z_far,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+    );
 
-    projection
+    let t = - z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
+    let r = aspect_ratio * t;
+    projection[(0, 0)] = 1.0 / r;
+    projection[(1, 1)] = 1.0 / t;
+    projection[(2, 2)] = 2.0 / (z_near - z_far).abs();
+    let mut projection1 = Matrix4::identity();
+    projection1[(2, 3)] = -(z_near + z_far) / 2.0;
+    projection * projection1 * matrix1
 }
 
 

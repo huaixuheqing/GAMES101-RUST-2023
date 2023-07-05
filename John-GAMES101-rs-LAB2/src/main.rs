@@ -4,6 +4,7 @@ mod utils;
 
 extern crate opencv;
 
+use std::time::Instant;
 use nalgebra::{Vector3};
 use opencv::{
     Result,
@@ -13,6 +14,8 @@ use crate::rasterizer::{Primitive, Rasterizer};
 use utils::*;
 
 fn main() -> Result<()> {
+    let start = Instant::now();
+    let mut flag = true;
     let mut r = Rasterizer::new(700, 700);
     let eye_pos = Vector3::new(0.0, 0.0, 5.0);
     let pos = vec![Vector3::new(2.0, 0.0, -2.0),
@@ -51,6 +54,12 @@ fn main() -> Result<()> {
         let image = frame_buffer2cv_mat(frame_buffer);
 
         imshow("image", &image)?;
+        if flag {
+            flag = false;
+            let end = Instant::now();
+            let elapsed = end- start;
+            println!("经过的时间：{:?}",elapsed);
+        }
         k = wait_key(2000).unwrap();
         println!("frame count: {}", frame_count);
         frame_count += 1;
