@@ -28,8 +28,9 @@ pub struct Rasterizer {
     frame_buf: Vec<Vector3<f64>>,
     depth_buf: Vec<f64>,
     /*  You may need to uncomment here to implement the MSAA method  */
-    // frame_sample: Vec<Vector3<f64>>,
-    // depth_sample: Vec<f64>,
+    frame_sample: Vec<Vector3<f64>>,
+    depth_sample: Vec<f64>,
+    cur_index: u64,
     width: u64,
     height: u64,
     next_id: usize,
@@ -51,6 +52,9 @@ impl Rasterizer {
         r.height = h;
         r.frame_buf.resize((w * h) as usize, Vector3::zeros());
         r.depth_buf.resize((w * h) as usize, 0.0);
+        r.frame_sample.resize((w * h * 4) as usize, Vector3::zeros());
+        r.depth_sample.resize((w * h * 4) as usize, 0.0);
+        r.cur_index = 0;
         r
     }
 
@@ -62,6 +66,12 @@ impl Rasterizer {
         let ind = (self.height as f64 - 1.0 - point.y) * self.width as f64 + point.x;
         self.frame_buf[ind as usize] = *color;
     }
+
+    fn set_pixel_sample(&mut self, point: &Vector3<f64>, color: &Vector3<f64>) {
+        let ind = (self.height as f64 - 1.0 - point.y) * self.width as f64 + point.x;
+        self.frame_sample[ind as usize + (self.width * self.height * self.cur_index)as usize] = *color;
+    }
+
 
     pub fn clear(&mut self, buff: Buffer) {
         match buff {
@@ -154,6 +164,13 @@ impl Rasterizer {
 
             self.rasterize_triangle(&t);
         }
+        for x in 0..=self.width - 1 {
+            for y in 0..=self.height - 1 {
+                let ind = self.get_index(x as usize,y as usize);
+                let jump = (self.width * self.height) as usize;
+                self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0),&((self.frame_sample[ind] + self.frame_sample[ind + jump] + self.frame_sample[ind + 2 * jump] + self.frame_sample[ind + 3 * jump]) / 4.0));
+            }
+        }
     }
 
     //无抗锯齿
@@ -182,80 +199,79 @@ impl Rasterizer {
 
     //MSAA
     pub fn rasterize_triangle(&mut self, t: &Triangle) {
-        for x in 0..=self.width{
-            for y in 0..=self.height{
-                let mut num = 0.0;
-                if inside_triangle(x as f64 + 0.25 , y as f64 +0.25 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.25 , y as f64 +0.75 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.75 , y as f64 +0.25 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.75 , y as f64 +0.75 , &t.v) {
-                    num+=1.0;
-                }
-                if num > 0.0 {
-                    let x1 = x as f64 + 0.5 - t.v[0].x;
-                    let y1 = y as f64 + 0.5 - t.v[0].y;
+        for x in 0..=self.width - 1  {
+            for y in 0..=self.height - 1 {
+                if inside_triangle(x as f64 + 0.25, y as f64 + 0.25, &t.v) {
+                    let x1 = x as f64 + 0.25 - t.v[0].x;
+                    let y1 = y as f64 + 0.25 - t.v[0].y;
                     let x2 = t.v[2].x - t.v[0].x;
                     let y2 = t.v[2].y - t.v[0].y;
                     let x3 = t.v[1].x - t.v[0].x;
                     let y3 = t.v[1].y - t.v[0].y;
-                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
-                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
-                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
-                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
-                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &Vector3::new(t.get_color().x * num / 4.0, t.get_color().y * num / 4.0, t.get_color().z * num / 4.0));
-                        let position = self.get_index(x as usize, y as usize);
-                        self.depth_buf[position] = depth;
+                    let u = (x1 * y3 - x3 * y1) / (x2 * y3 - x3 * y2);
+                    let v = (x1 * y2 - x2 * y1) / (x3 * y2 - x2 * y3);
+                    let depth = -(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_sample[self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize] > depth {
+                        self.set_pixel_sample(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize;
+                        self.depth_sample[position as usize] = depth;
                     }
                 }
+                self.cur_index = 1;
+                if inside_triangle(x as f64 + 0.25, y as f64 + 0.75, &t.v) {
+                    let x1 = x as f64 + 0.25 - t.v[0].x;
+                    let y1 = y as f64 + 0.75 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1 * y3 - x3 * y1) / (x2 * y3 - x3 * y2);
+                    let v = (x1 * y2 - x2 * y1) / (x3 * y2 - x2 * y3);
+                    let depth = -(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_sample[self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize] > depth {
+                        self.set_pixel_sample(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize;
+                        self.depth_sample[position as usize] = depth;
+                    }
+                }
+                self.cur_index = 2;
+                if inside_triangle(x as f64 + 0.75, y as f64 + 0.25, &t.v) {
+                    let x1 = x as f64 + 0.75 - t.v[0].x;
+                    let y1 = y as f64 + 0.25 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1 * y3 - x3 * y1) / (x2 * y3 - x3 * y2);
+                    let v = (x1 * y2 - x2 * y1) / (x3 * y2 - x2 * y3);
+                    let depth = -(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_sample[self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize] > depth {
+                        self.set_pixel_sample(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize;
+                        self.depth_sample[position as usize] = depth;
+                    }
+                }
+                self.cur_index = 3;
+                if inside_triangle(x as f64 + 0.75, y as f64 + 0.75, &t.v) {
+                    let x1 = x as f64 + 0.75 - t.v[0].x;
+                    let y1 = y as f64 + 0.75 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1 * y3 - x3 * y1) / (x2 * y3 - x3 * y2);
+                    let v = (x1 * y2 - x2 * y1) / (x3 * y2 - x2 * y3);
+                    let depth = -(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_sample[self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize] > depth {
+                        self.set_pixel_sample(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize) + (self.cur_index * self.width * self.height) as usize;
+                        self.depth_sample[position] = depth;
+                    }
+                }
+                self.cur_index = 0;
             }
         }
     }
-
-    //TAA
-    /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
-        for x in 0..=self.width{
-            for y in 0..=self.height{
-                let mut num = 0.0;
-                if inside_triangle(x as f64 + 0.25 , y as f64 +0.25 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.25 , y as f64 +0.75 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.75 , y as f64 +0.25 , &t.v) {
-                    num+=1.0;
-                }
-                if inside_triangle(x as f64 + 0.75 , y as f64 +0.75 , &t.v) {
-                    num+=1.0;
-                }
-                if num > 0.0 {
-                    let x1 = x as f64 + 0.5 - t.v[0].x;
-                    let y1 = y as f64 + 0.5 - t.v[0].y;
-                    let x2 = t.v[2].x - t.v[0].x;
-                    let y2 = t.v[2].y - t.v[0].y;
-                    let x3 = t.v[1].x - t.v[0].x;
-                    let y3 = t.v[1].y - t.v[0].y;
-                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
-                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
-                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
-                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
-                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &Vector3::new(t.get_color().x * num / 4.0, t.get_color().y * num / 4.0, t.get_color().z * num / 4.0));
-                        let position = self.get_index(x as usize, y as usize);
-                        self.depth_buf[position] = depth;
-                    }
-                }
-            }
-        }
-    }*/
-
-
-
 
     pub fn frame_buffer(&self) -> &Vec<Vector3<f64>> {
         &self.frame_buf
