@@ -71,7 +71,7 @@ fn main() {
         } else if k == 'd' as i32 {
             angle -= 10.0;
         } else if k == 'r' as i32 {
-            arbitrary_rotation_angle += 10.0;
+            arbitrary_rotation_angle -= 10.0;
         }
         frame_count += 1;
     }

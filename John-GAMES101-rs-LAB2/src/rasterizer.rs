@@ -156,6 +156,31 @@ impl Rasterizer {
         }
     }
 
+    //无抗锯齿
+    /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
+        for x in 0..=self.width{
+            for y in 0..=self.height{
+                if inside_triangle(x as f64 + 0.5 , y as f64 + 0.5 , &t.v) {
+                    let x1 = x as f64 + 0.5 - t.v[0].x;
+                    let y1 = y as f64 + 0.5 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
+                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
+                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
+                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize);
+                        self.depth_buf[position] = depth;
+                    }
+                }
+            }
+        }
+    }*/
+
+    //MSAA
     pub fn rasterize_triangle(&mut self, t: &Triangle) {
         for x in 0..=self.width{
             for y in 0..=self.height{
@@ -191,6 +216,46 @@ impl Rasterizer {
             }
         }
     }
+
+    //TAA
+    /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
+        for x in 0..=self.width{
+            for y in 0..=self.height{
+                let mut num = 0.0;
+                if inside_triangle(x as f64 + 0.25 , y as f64 +0.25 , &t.v) {
+                    num+=1.0;
+                }
+                if inside_triangle(x as f64 + 0.25 , y as f64 +0.75 , &t.v) {
+                    num+=1.0;
+                }
+                if inside_triangle(x as f64 + 0.75 , y as f64 +0.25 , &t.v) {
+                    num+=1.0;
+                }
+                if inside_triangle(x as f64 + 0.75 , y as f64 +0.75 , &t.v) {
+                    num+=1.0;
+                }
+                if num > 0.0 {
+                    let x1 = x as f64 + 0.5 - t.v[0].x;
+                    let y1 = y as f64 + 0.5 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
+                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
+                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
+                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &Vector3::new(t.get_color().x * num / 4.0, t.get_color().y * num / 4.0, t.get_color().z * num / 4.0));
+                        let position = self.get_index(x as usize, y as usize);
+                        self.depth_buf[position] = depth;
+                    }
+                }
+            }
+        }
+    }*/
+
+
+
 
     pub fn frame_buffer(&self) -> &Vec<Vector3<f64>> {
         &self.frame_buf

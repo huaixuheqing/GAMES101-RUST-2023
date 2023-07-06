@@ -6,9 +6,11 @@ use std::os::raw::c_void;
 pub type V3d = Vector3<f64>;
 
 pub(crate) fn get_rotation(axis: V3d, angle:f64) -> Matrix4<f64> {
+    let length = (axis.x * axis.x + axis.y * axis.y + axis.z * axis.z).sqrt();
+    let axis1 = V3d::new(axis.x / length, axis.y / length, axis.z / length);
     let cos_alpha = angle.to_radians().cos();
     let sin_alpha = angle.to_radians().sin();
-    let result = cos_alpha * Matrix3::identity() + (1.0 - cos_alpha) * axis * axis.transpose() + sin_alpha * Matrix3::new(0.0,-axis.x,axis.y,axis.z,0.0,-axis.x,-axis.y,axis.x,0.0);
+    let result = cos_alpha * Matrix3::identity() + (1.0 - cos_alpha) * axis1 * axis1.transpose() + sin_alpha * Matrix3::new(0.0,-axis1.x,axis1.y,axis1.z,0.0,-axis1.x,-axis1.y,axis1.x,0.0);
     let matrix4: Matrix4<f64> = result.to_homogeneous();
     matrix4
 }
@@ -62,7 +64,7 @@ pub(crate) fn get_projection_matrix(
         0.0,
     );
 
-    let t = z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
+    let t =  - z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
     let r = aspect_ratio * t;
     projection[(0, 0)] = 1.0 / r;
     projection[(1, 1)] = 1.0 / t;
