@@ -1,6 +1,8 @@
+use std::cmp::{max, min};
 use std::collections::HashMap;
-
+use rand::Rng;
 use nalgebra::{Matrix4, Vector3, Vector4};
+use opencv::core::abs;
 use crate::triangle::Triangle;
 
 #[allow(dead_code)]
@@ -164,19 +166,12 @@ impl Rasterizer {
 
             self.rasterize_triangle(&t);
         }
-        for x in 0..=self.width - 1 {
-            for y in 0..=self.height - 1 {
-                let ind = self.get_index(x as usize,y as usize);
-                let jump = (self.width * self.height) as usize;
-                self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0),&((self.frame_sample[ind] + self.frame_sample[ind + jump] + self.frame_sample[ind + 2 * jump] + self.frame_sample[ind + 3 * jump]) / 4.0));
-            }
-        }
     }
 
     //无抗锯齿
     /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
-        for x in 0..=self.width{
-            for y in 0..=self.height{
+        for x in 0..=self.width - 1 {
+            for y in 0..=self.height - 1 {
                 if inside_triangle(x as f64 + 0.5 , y as f64 + 0.5 , &t.v) {
                     let x1 = x as f64 + 0.5 - t.v[0].x;
                     let y1 = y as f64 + 0.5 - t.v[0].y;
@@ -198,7 +193,7 @@ impl Rasterizer {
     }*/
 
     //MSAA
-    pub fn rasterize_triangle(&mut self, t: &Triangle) {
+    /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
         for x in 0..=self.width - 1  {
             for y in 0..=self.height - 1 {
                 if inside_triangle(x as f64 + 0.25, y as f64 + 0.25, &t.v) {
@@ -270,6 +265,99 @@ impl Rasterizer {
                 }
                 self.cur_index = 0;
             }
+        }
+
+        for x in 0..=self.width - 1 {
+            for y in 0..=self.height - 1 {
+                let ind = self.get_index(x as usize,y as usize);
+                let jump = (self.width * self.height) as usize;
+                self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0),&((self.frame_sample[ind] + self.frame_sample[ind + jump] + self.frame_sample[ind + 2 * jump] + self.frame_sample[ind + 3 * jump]) / 4.0));
+            }
+        }
+    }*/
+
+    //FXAA
+    pub fn rasterize_triangle(&mut self, t: &Triangle) {
+        for x in 0..=self.width - 1 {
+            for y in 0..=self.height - 1 {
+                if inside_triangle(x as f64 + 0.5 , y as f64 + 0.5 , &t.v) {
+                    let x1 = x as f64 + 0.5 - t.v[0].x;
+                    let y1 = y as f64 + 0.5 - t.v[0].y;
+                    let x2 = t.v[2].x - t.v[0].x;
+                    let y2 = t.v[2].y - t.v[0].y;
+                    let x3 = t.v[1].x - t.v[0].x;
+                    let y3 = t.v[1].y - t.v[0].y;
+                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
+                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
+                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
+                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
+                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
+                        let position = self.get_index(x as usize, y as usize);
+                        self.depth_buf[position] = depth;
+                    }
+                }
+            }
+        }
+        self.cur_index += 1;
+        if self.cur_index == 3 {
+            let frame_buf_clone = self.frame_buf.clone();
+            let mut luma:Vec<f64> = Vec::new();
+            luma.resize((self.width * self.height) as usize, 0.0);
+            for x in 0..=self.width - 1 {
+                for y in 0..=self.height - 1 {
+                    luma[self.get_index(x as usize, y as usize)] = self.frame_buf[self.get_index(x as usize, y as usize)].dot(&Vector3::new(0.299, 0.857,0.114));
+                }
+            }
+            let fxaa_absolute_luma_threshold: f64 = 0.05 * 255.0;
+            let fxaa_relative_luma_threshold = 0.1;
+            for x in 1..=self.width - 2 {
+                for y in 1..=self.height - 2 {
+                    let luma_s = luma[self.get_index(x as usize, y as usize + 1)];
+                    let luma_n = luma[self.get_index(x as usize, y as usize - 1)];
+                    let luma_w = luma[self.get_index(x as usize - 1, y as usize)];
+                    let luma_e = luma[self.get_index(x as usize + 1, y as usize)];
+                    let luma_m = luma[self.get_index(x as usize, y as usize)];
+                    let lumaminns = luma_n.min(luma_s);
+                    let lumaminwe = luma_w.min(luma_e);
+                    let lumamin = luma_m.min(lumaminns.min(lumaminwe));
+                    let lumamaxns = luma_n.max(luma_s);
+                    let lumamaxwe = luma_w.max(luma_e);
+                    let lumamax = luma_m.max(lumamaxns.max(lumamaxwe));
+                    let lumacontrast = lumamax - lumamin;
+                    let edge_threshold = fxaa_absolute_luma_threshold.max(lumamax * fxaa_relative_luma_threshold);
+                    let isedge = lumacontrast > edge_threshold;
+                    if isedge {
+                        let luma_grad_s = luma_s - luma_m;
+                        let luma_grad_n = luma_n - luma_m;
+                        let luma_grad_w = luma_w - luma_m;
+                        let luma_grad_e = luma_e - luma_m;
+                        let luma_grad_v = (luma_grad_s + luma_grad_n).abs();
+                        let luma_grad_h = (luma_grad_w + luma_grad_e).abs();
+                        let is_horz = luma_grad_v > luma_grad_h;
+                        let luma_l = (luma_n + luma_s + luma_e + luma_w) * 0.25;
+                        let luma_delta_ml = (luma_m - luma_l).abs();
+                        let blend = luma_delta_ml / lumacontrast;
+                        let position = self.get_index(x as usize, y as usize);
+                        if is_horz {
+                            if luma_grad_n.abs() > luma_grad_s.abs(){
+                                self.frame_buf[position] = frame_buf_clone[self.get_index(x as usize, y as usize - 1)] * blend + frame_buf_clone[self.get_index(x as usize, y as usize)] * (1.0 - blend);
+                            }
+                            else{
+                                self.frame_buf[position] = frame_buf_clone[self.get_index(x as usize, y as usize + 1)] * blend + frame_buf_clone[self.get_index(x as usize, y as usize)] * (1.0 - blend);
+                            }
+                        }
+                        else{
+                            if luma_grad_e.abs() > luma_grad_w.abs(){
+                                self.frame_buf[position] = frame_buf_clone[self.get_index(x as usize + 1, y as usize)] * blend + frame_buf_clone[self.get_index(x as usize, y as usize)] * (1.0 - blend);
+                            }
+                            else{
+                                self.frame_buf[position] = frame_buf_clone[self.get_index(x as usize - 1, y as usize)] * blend + frame_buf_clone[self.get_index(x as usize, y as usize)] * (1.0 - blend);
+                            }
+                        }
+                    }
+                }
+            }
+            self.cur_index = 0;
         }
     }
 
