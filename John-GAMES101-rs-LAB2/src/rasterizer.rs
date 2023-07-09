@@ -166,6 +166,15 @@ impl Rasterizer {
 
             self.rasterize_triangle(&t);
         }
+
+        for x in 0..=self.width - 1 {
+            for y in 0..=self.height - 1 {
+                let ind = self.get_index(x as usize,y as usize);
+                let jump = (self.width * self.height) as usize;
+                self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0),&((self.frame_sample[ind] + self.frame_sample[ind + jump] + self.frame_sample[ind + 2 * jump] + self.frame_sample[ind + 3 * jump]) / 4.0));
+            }
+        }
+        self.rasterize_triangle_fxaa();
     }
 
     //无抗锯齿
@@ -193,7 +202,7 @@ impl Rasterizer {
     }*/
 
     //MSAA
-    /*pub fn rasterize_triangle(&mut self, t: &Triangle) {
+    pub fn rasterize_triangle(&mut self, t: &Triangle) {
         for x in 0..=self.width - 1  {
             for y in 0..=self.height - 1 {
                 if inside_triangle(x as f64 + 0.25, y as f64 + 0.25, &t.v) {
@@ -267,39 +276,19 @@ impl Rasterizer {
             }
         }
 
-        for x in 0..=self.width - 1 {
+/*        for x in 0..=self.width - 1 {
             for y in 0..=self.height - 1 {
                 let ind = self.get_index(x as usize,y as usize);
                 let jump = (self.width * self.height) as usize;
                 self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0),&((self.frame_sample[ind] + self.frame_sample[ind + jump] + self.frame_sample[ind + 2 * jump] + self.frame_sample[ind + 3 * jump]) / 4.0));
             }
-        }
-    }*/
+        }*/
+    }
 
     //FXAA
-    pub fn rasterize_triangle(&mut self, t: &Triangle) {
-        for x in 0..=self.width - 1 {
-            for y in 0..=self.height - 1 {
-                if inside_triangle(x as f64 + 0.5 , y as f64 + 0.5 , &t.v) {
-                    let x1 = x as f64 + 0.5 - t.v[0].x;
-                    let y1 = y as f64 + 0.5 - t.v[0].y;
-                    let x2 = t.v[2].x - t.v[0].x;
-                    let y2 = t.v[2].y - t.v[0].y;
-                    let x3 = t.v[1].x - t.v[0].x;
-                    let y3 = t.v[1].y - t.v[0].y;
-                    let u = (x1*y3-x3*y1)/(x2*y3-x3*y2);
-                    let v = (x1*y2-x2*y1)/(x3*y2-x2*y3);
-                    let depth =-(t.v[0].z + u * (t.v[2].z - t.v[0].z) + v * (t.v[1].z - t.v[0].z));
-                    if self.depth_buf[self.get_index(x as usize, y as usize)] > depth {
-                        self.set_pixel(&Vector3::new(x as f64, y as f64, 0.0), &t.get_color());
-                        let position = self.get_index(x as usize, y as usize);
-                        self.depth_buf[position] = depth;
-                    }
-                }
-            }
-        }
-        self.cur_index += 1;
-        if self.cur_index == 3 {
+    pub fn rasterize_triangle_fxaa(&mut self/*, t: &Triangle*/) {
+        /*self.cur_index += 1;
+        if self.cur_index == 3 {*/
             let frame_buf_clone = self.frame_buf.clone();
             let mut luma:Vec<f64> = Vec::new();
             luma.resize((self.width * self.height) as usize, 0.0);
@@ -357,8 +346,8 @@ impl Rasterizer {
                     }
                 }
             }
-            self.cur_index = 0;
-        }
+            /*self.cur_index = 0;*/
+        //}
     }
 
     pub fn frame_buffer(&self) -> &Vec<Vector3<f64>> {

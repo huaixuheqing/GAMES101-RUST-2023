@@ -43,7 +43,10 @@ fn main() {
         r.set_model(get_model_matrix(angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1.0, 0.1, 50.0));
-        r.set_arbitrary_rotation(get_rotation(V3d::new(1.0,2.0,3.0),arbitrary_rotation_angle));
+        r.set_arbitrary_rotation(get_rotation(
+            V3d::new(1.0, 2.0, 3.0),
+            arbitrary_rotation_angle,
+        ));
         r.draw_triangle(pos_id, ind_id, Primitive::Triangle);
 
         let frame_buffer = r.frame_buffer();
@@ -57,7 +60,10 @@ fn main() {
         r.set_model(get_model_matrix(angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1.0, 0.1, 50.0));
-        r.set_arbitrary_rotation(get_rotation(V3d::new(1.0,2.0,3.0),arbitrary_rotation_angle));
+        r.set_arbitrary_rotation(get_rotation(
+            V3d::new(0.3, 0.4, 0.5),
+            arbitrary_rotation_angle,
+        ));
         r.draw_triangle(pos_id, ind_id, Primitive::Triangle);
 
         let frame_buffer = r.frame_buffer();
