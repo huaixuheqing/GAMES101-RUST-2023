@@ -33,10 +33,39 @@ pub(crate) fn get_model_matrix(rotation_angle: f64) -> M4f {
 }
 
 pub(crate) fn get_projection_matrix(eye_fov: f64, aspect_ratio: f64, z_near: f64, z_far: f64) -> M4f {
-    let mut persp2ortho: M4f = Matrix4::zeros();
+    /*let mut persp2ortho: M4f = Matrix4::zeros();
     /*  Implement your code here  */
 
-    persp2ortho
+    persp2ortho*/
+    let mut projection: Matrix4<f64> = Matrix4::identity();
+    /*  implement what you've done in LAB1  */
+    let matrix1 = Matrix4::new(
+        z_near,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        z_near,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        z_near + z_far,
+        -z_near * z_far,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+    );
+
+    let t = - z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
+    let r = aspect_ratio * t;
+    projection[(0, 0)] = 1.0 / r;
+    projection[(1, 1)] = 1.0 / t;
+    projection[(2, 2)] = 2.0 / (z_near - z_far).abs();
+    let mut projection1 = Matrix4::identity();
+    projection1[(2, 3)] = -(z_near + z_far) / 2.0;
+    projection * projection1 * matrix1
 }
 
 
@@ -147,10 +176,10 @@ pub fn phong_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     let color = payload.color;
 
     let mut result_color = Vector3::zeros(); // 保存光照结果
-    
+
     // <遍历每一束光>
     for light in lights {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
+        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
 
 
@@ -191,7 +220,7 @@ pub fn texture_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     let mut result_color = Vector3::zeros();
 
     for light in lights {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
+        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
 
     }
@@ -278,10 +307,10 @@ pub fn displacement_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
 
     let mut result_color = Vector3::zeros();
     for light in lights {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
+        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
 
-        
+
     }
 
     result_color * 255.0

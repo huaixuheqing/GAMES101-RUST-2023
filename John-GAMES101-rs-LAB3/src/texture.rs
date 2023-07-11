@@ -1,7 +1,7 @@
 use nalgebra::{Vector3};
 use opencv::core::{MatTraitConst, VecN};
 use opencv::imgcodecs::{imread, IMREAD_COLOR};
-
+#[derive(Clone)]
 pub struct Texture {
     pub img_data: opencv::core::Mat,
     pub width: usize,

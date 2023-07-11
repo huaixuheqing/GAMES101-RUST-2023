@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
+use opencv::core::norm;
 use crate::shader::{FragmentShaderPayload, VertexShaderPayload};
 use crate::texture::Texture;
 use crate::triangle::Triangle;
@@ -86,14 +87,14 @@ impl Rasterizer {
         self.projection = projection;
     }
 
-    pub fn set_texture(&mut self, tex: Texture) { 
-        self.texture = Some(tex); 
+    pub fn set_texture(&mut self, tex: Texture) {
+        self.texture = Some(tex);
     }
 
     pub fn set_vertex_shader(&mut self, vert_shader: fn(&VertexShaderPayload) -> Vector3<f64>) {
         self.vert_shader = Some(vert_shader);
     }
-    
+
     pub fn set_fragment_shader(&mut self, frag_shader: fn(&FragmentShaderPayload) -> Vector3<f64>) {
         self.fragment_shader = Some(frag_shader);
     }
@@ -102,17 +103,46 @@ impl Rasterizer {
         let mvp = self.projection * self.view * self.model;
 
         // 遍历每个小三角形
-        for triangle in triangles { 
-            self.rasterize_triangle(&triangle, mvp); 
+        for triangle in triangles {
+            self.rasterize_triangle(&triangle, mvp);
         }
     }
 
     pub fn rasterize_triangle(&mut self, triangle: &Triangle, mvp: Matrix4<f64>) {
         /*  Implement your code here  */
 
+        let (t,view_space_pos) = Self::get_new_tri(triangle,self.view,self.model,mvp,(self.width,self.height));
+
+        let xmin = t.v[0].x.min(t.v[1].x.min(t.v[2].x)) as usize;
+        let xmax = t.v[0].x.max(t.v[1].x.max(t.v[2].x)) as usize;
+        let ymin = t.v[0].y.min(t.v[1].y.min(t.v[2].y)) as usize;
+        let ymax = t.v[0].y.max(t.v[1].y.max(t.v[2].y)) as usize;
+
+        for x in xmin..=xmax {
+            for y in ymin..=ymax {
+                if inside_triangle(x as f64 + 0.5 , y as f64 + 0.5 , &t.v) {
+                    let x1 = x as f64 + 0.5;
+                    let y1 = y as f64 + 0.5;
+                    let (alpha, beta, gamma) = compute_barycentric2d(x1,y1, &t.v);
+                    let depth = (alpha * t.v[0].z / t.v[0].w + beta * t.v[1].z / t.v[1].w + gamma * t.v[2].z / t.v[2].w);
+                    if self.depth_buf[Self::get_index(self.height, self.width, x as usize, y as usize)] > depth {
+                        let color = Self::interpolate_Vec3(alpha,beta,gamma,triangle.color[0] * 255.0, triangle.color[1] * 255.0, triangle.color[2] * 255.0,1.0);
+                        let normal = Self::interpolate_Vec3(alpha,beta,gamma,t.normal[0],t.normal[1],t.normal[2],1.0);
+                        let tex_coords = Self::interpolate_Vec2(alpha,beta,gamma,t.tex_coords[0],t.tex_coords[1],t.tex_coords[2],1.0);
+
+                        let B = &self.texture.clone().unwrap();
+                        let A = FragmentShaderPayload::new(&color,&normal,&tex_coords,Some(Rc::new(B)));
+
+                        Self::set_pixel(self.height, self.width, &mut self.frame_buf, &Vector3::new(x as f64, y as f64, 0.0), &self.fragment_shader.unwrap()(&A));
+                        let position = Self::get_index(self.height, self.width, x as usize, y as usize);
+                        self.depth_buf[position] = depth;
+                    }
+                }
+            }
+        }
 
     }
-    
+
     fn interpolate_Vec3(a: f64, b: f64, c: f64, vert1: Vector3<f64>, vert2: Vector3<f64>, vert3: Vector3<f64>, weight: f64) -> Vector3<f64> {
         (a * vert1 + b * vert2 + c * vert3) / weight
     }
@@ -121,7 +151,7 @@ impl Rasterizer {
     }
 
     fn get_new_tri(t: &Triangle, view: Matrix4<f64>, model: Matrix4<f64>, mvp: Matrix4<f64>,
-                    (width, height): (u64, u64)) -> (Triangle, Vec<Vector3<f64>>) {
+                   (width, height): (u64, u64)) -> (Triangle, Vec<Vector3<f64>>) {
         let f1 = (50.0 - 0.1) / 2.0; // zfar和znear距离的一半
         let f2 = (50.0 + 0.1) / 2.0; // zfar和znear的中心z坐标
         let mut new_tri = (*t).clone();
