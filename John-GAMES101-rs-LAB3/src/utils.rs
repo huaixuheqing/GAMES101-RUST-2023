@@ -1,6 +1,6 @@
 use std::os::raw::c_void;
 use nalgebra::{Matrix3, Matrix4, Vector3, Vector4};
-use opencv::core::{Mat, MatTraitConst};
+use opencv::core::{Mat, MatTraitConst, sqrt};
 use opencv::imgproc::{COLOR_RGB2BGR, cvt_color};
 use crate::shader::{FragmentShaderPayload, VertexShaderPayload};
 use crate::texture::Texture;
@@ -149,6 +149,18 @@ pub fn normal_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     result_color * 255.0
 }
 
+pub fn length_squared(a: Vector3<f64>) -> f64 {
+    (a.x * a.x + a.y * a.y + a.z * a.z)
+}
+
+pub fn length(a: Vector3<f64>) -> f64 {
+    (a.x * a.x + a.y * a.y + a.z * a.z).sqrt()
+}
+
+pub fn elem_mul(a: Vector3<f64>, b: Vector3<f64>) -> Vector3<f64> {
+    Vector3::new(a.x * b.x, a.y * b.y, a.z * b.z)
+}
+
 pub fn phong_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     // 泛光、漫反射、高光系数
     let ka = Vector3::new(0.005, 0.005, 0.005);
@@ -182,7 +194,19 @@ pub fn phong_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
 
+        let l = (light.position - point) / length(light.position - point);
+        let v = (eye_pos - point) / length(eye_pos - point);
+        let h = (l + v) / length(l + v);
+        let n = normal / length(normal);
 
+        let cos_theta = l.dot(&n);
+        let diffusely_reflected_light = elem_mul(kd, light.intensity / length_squared(light.position - point)) * cos_theta.max(0.0);
+        result_color += diffusely_reflected_light;
+        let cos_alpha = h.dot(&n);
+        let specularly_reflected_light = elem_mul(ks, light.intensity / length_squared(light.position - point)) * cos_alpha.max(0.0).powf(p);
+        result_color += specularly_reflected_light;
+        let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
+        result_color += reflected_ambient_light;
     }
     result_color * 255.0
 }

@@ -126,7 +126,7 @@ impl Rasterizer {
                     let (alpha, beta, gamma) = compute_barycentric2d(x1,y1, &t.v);
                     let depth = (alpha * t.v[0].z / t.v[0].w + beta * t.v[1].z / t.v[1].w + gamma * t.v[2].z / t.v[2].w);
                     if self.depth_buf[Self::get_index(self.height, self.width, x as usize, y as usize)] > depth {
-                        let color = Self::interpolate_Vec3(alpha,beta,gamma,triangle.color[0] * 255.0, triangle.color[1] * 255.0, triangle.color[2] * 255.0,1.0);
+                        let color = Self::interpolate_Vec3(alpha,beta,gamma,t.color[0], t.color[1], t.color[2],1.0);
                         let normal = Self::interpolate_Vec3(alpha,beta,gamma,t.normal[0],t.normal[1],t.normal[2],1.0);
                         let tex_coords = Self::interpolate_Vec2(alpha,beta,gamma,t.tex_coords[0],t.tex_coords[1],t.tex_coords[2],1.0);
 
