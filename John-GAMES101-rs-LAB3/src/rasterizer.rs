@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::rc::Rc;
 
 use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
@@ -124,15 +125,15 @@ impl Rasterizer {
                     let x1 = x as f64 + 0.5;
                     let y1 = y as f64 + 0.5;
                     let (alpha, beta, gamma) = compute_barycentric2d(x1,y1, &t.v);
-                    let depth = (alpha * t.v[0].z / t.v[0].w + beta * t.v[1].z / t.v[1].w + gamma * t.v[2].z / t.v[2].w);
+                    let depth = -(alpha * t.v[0].z / t.v[0].w + beta * t.v[1].z / t.v[1].w + gamma * t.v[2].z / t.v[2].w);
                     if self.depth_buf[Self::get_index(self.height, self.width, x as usize, y as usize)] > depth {
                         let color = Self::interpolate_Vec3(alpha,beta,gamma,t.color[0], t.color[1], t.color[2],1.0);
                         let normal = Self::interpolate_Vec3(alpha,beta,gamma,t.normal[0],t.normal[1],t.normal[2],1.0);
                         let tex_coords = Self::interpolate_Vec2(alpha,beta,gamma,t.tex_coords[0],t.tex_coords[1],t.tex_coords[2],1.0);
 
                         let B = &self.texture.clone().unwrap();
-                        let A = FragmentShaderPayload::new(&color,&normal,&tex_coords,Some(Rc::new(B)));
-
+                        let mut A = FragmentShaderPayload::new(&color,&normal,&tex_coords,Some(Rc::new(B)));
+                        A.view_pos = Self::interpolate_Vec3(alpha, beta, gamma, view_space_pos[0], view_space_pos[1], view_space_pos[2], 1.0);
                         Self::set_pixel(self.height, self.width, &mut self.frame_buf, &Vector3::new(x as f64, y as f64, 0.0), &self.fragment_shader.unwrap()(&A));
                         let position = Self::get_index(self.height, self.width, x as usize, y as usize);
                         self.depth_buf[position] = depth;
@@ -140,7 +141,36 @@ impl Rasterizer {
                 }
             }
         }
+        /*/*  Implement your code here  */
+        let (new_tri, view_space_pos) = Self::get_new_tri(triangle, self.view, self.model, mvp,(self.width, self.height));
 
+        let x_min = (self.width as f64 - 1.0).min(new_tri.v[0].x.min(new_tri.v[1].x.min(new_tri.v[2].x))) as i32;
+        let x_max = (self.width as f64 - 1.0).min(new_tri.v[0].x.max(new_tri.v[1].x.max(new_tri.v[2].x))) as i32;
+        let y_min = (self.height as f64 - 1.0).min(new_tri.v[0].y.min(new_tri.v[1].y.min(new_tri.v[2].y))) as i32;
+        let y_max = (self.height as f64 - 1.0).min(new_tri.v[0].y.max(new_tri.v[1].y.max(new_tri.v[2].y))) as i32;
+
+        for x in x_min..= x_max {
+            for y in y_min..= y_max {
+                if inside_triangle(x as f64 + 0.5, y as f64 + 0.5, &new_tri.v) && (new_tri.v[0].z <= self.depth_buf[Self::get_index(self.height, self.width, x as usize, y as usize)]) {
+                    let (a, b, c) = compute_barycentric2d(x as f64 + 0.5, y as f64 + 0.5, &new_tri.v);
+                    let temp = Self::get_index(self.height, self.width, x as usize, y as usize).clone();
+                    self.depth_buf[temp] = new_tri.v[0].z;
+
+                    let temp_color = Self::interpolate_Vec3(a, b, c, new_tri.color[0], new_tri.color[1], new_tri.color[2],  1.0);
+                    let temp_normal = Self::interpolate_Vec3(a, b, c, new_tri.normal[0], new_tri.normal[1], new_tri.normal[2], 1.0);
+                    let temp_texcoord = Self::interpolate_Vec2(a, b, c, new_tri.tex_coords[0], new_tri.tex_coords[1], new_tri.tex_coords[2], 1.0);
+                    let temp_tex = self.texture.clone().unwrap();
+
+                    let mut temp_0 = FragmentShaderPayload::new(&temp_color, &temp_normal, &temp_texcoord, Some(Rc::new(&temp_tex)));
+                    temp_0.view_pos = Self::interpolate_Vec3(a, b, c, view_space_pos[0], view_space_pos[1], view_space_pos[2], 1.0);
+
+                    Self::set_pixel(self.height, self.width, &mut self.frame_buf, &Vector3::new(x as f64, y as f64, 0.0), &self.fragment_shader.unwrap()(&temp_0));
+                    //Self::set_pixel(self.height, self.width, &mut self.frame_buf, &Vector3::new(x as f64, y as f64, 0.0), &(temp_color * 255.0));
+                    //self.frame_buf_0[temp] = t.get_color().clone();
+                    //
+                }
+            }
+        }*/
     }
 
     fn interpolate_Vec3(a: f64, b: f64, c: f64, vert1: Vector3<f64>, vert2: Vector3<f64>, vert3: Vector3<f64>, weight: f64) -> Vector3<f64> {

@@ -33,39 +33,35 @@ pub(crate) fn get_model_matrix(rotation_angle: f64) -> M4f {
 }
 
 pub(crate) fn get_projection_matrix(eye_fov: f64, aspect_ratio: f64, z_near: f64, z_far: f64) -> M4f {
-    /*let mut persp2ortho: M4f = Matrix4::zeros();
+    let mut persp2ortho: M4f = Matrix4::zeros();
     /*  Implement your code here  */
 
-    persp2ortho*/
-    let mut projection: Matrix4<f64> = Matrix4::identity();
-    /*  implement what you've done in LAB1  */
-    let matrix1 = Matrix4::new(
-        z_near,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        z_near,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        z_near + z_far,
-        -z_near * z_far,
-        0.0,
-        0.0,
-        1.0,
-        0.0,
-    );
+    let t = -z_near * (eye_fov.to_radians() / 2.0).tan();
+    let r = t * aspect_ratio;
+    let l = -r;
+    let b = -t;
 
-    let t = - z_near.abs() * (eye_fov.to_radians() / 2.0).tan();
-    let r = aspect_ratio * t;
-    projection[(0, 0)] = 1.0 / r;
-    projection[(1, 1)] = 1.0 / t;
-    projection[(2, 2)] = 2.0 / (z_near - z_far).abs();
-    let mut projection1 = Matrix4::identity();
-    projection1[(2, 3)] = -(z_near + z_far) / 2.0;
-    projection * projection1 * matrix1
+    let mut persp = Matrix4::identity();
+    persp[(0,0)] = z_near;
+    persp[(1,1)] = z_near;
+    persp[(2,2)] = z_near + z_far;
+    persp[(2,3)] = -z_far * z_near;
+    persp[(3,2)] = 1.0;
+    persp[(3,3)] = 0.0;
+
+    let mut ortho1 = Matrix4::identity();
+    ortho1[(0,0)] = 1.0 / r;
+    ortho1[(1,1)] = 1.0 / t;
+    ortho1[(2,2)] = 2.0 / (z_near - z_far);
+
+    let mut ortho2 = Matrix4::identity();
+    ortho2[(0, 3)] = (r + l) / -2.0;
+    ortho2[(1, 3)] = (t + b) / -2.0;
+    ortho2[(2, 3)] = (z_far + z_near) / -2.0;
+
+    persp2ortho = ortho1 * ortho2 * persp;
+
+    persp2ortho
 }
 
 
@@ -205,9 +201,9 @@ pub fn phong_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
         let cos_alpha = h.dot(&n);
         let specularly_reflected_light = elem_mul(ks, light.intensity / length_squared(light.position - point)) * cos_alpha.max(0.0).powf(p);
         result_color += specularly_reflected_light;
-        let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
-        result_color += reflected_ambient_light;
     }
+    let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
+    result_color += reflected_ambient_light;
     result_color * 255.0
 }
 
@@ -216,9 +212,8 @@ pub fn texture_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     let texture_color: Vector3<f64> = match &payload.texture {
         // TODO: Get the texture value at the texture coordinates of the current fragment
         // <获取材质颜色信息>
-
         None => Vector3::new(0.0, 0.0, 0.0),
-        Some(texture) => Vector3::new(0.0, 0.0, 0.0), // Do modification here
+        Some(texture) => texture.getColorBilinear(payload.tex_coords.x,payload.tex_coords.y), // Do modification here
     };
     let kd = texture_color / 255.0; // 材质颜色影响漫反射系数
     let ks = Vector3::new(0.7937, 0.7937, 0.7937);
@@ -240,16 +235,36 @@ pub fn texture_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     let color = texture_color;
     let point = payload.view_pos;
     let normal = payload.normal;
-
     let mut result_color = Vector3::zeros();
 
     for light in lights {
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
+        let l = (light.position - point).normalize();
+        let v = (eye_pos - point).normalize();
+        let h = (l + v).normalize();
+        let n = normal.normalize();
 
+        let cos_theta = l.dot(&n);
+        let diffusely_reflected_light = elem_mul(kd, light.intensity / length_squared(light.position - point)) * cos_theta.max(0.0);
+        result_color += diffusely_reflected_light;
+        let cos_alpha = h.dot(&n);
+        let specularly_reflected_light = elem_mul(ks, light.intensity / length_squared(light.position - point)) * cos_alpha.max(0.0).powf(p);
+        result_color += specularly_reflected_light;
+        let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
+        result_color += reflected_ambient_light;
     }
 
+
     result_color * 255.0
+}
+
+pub fn h(payload: &FragmentShaderPayload, u: f64, v: f64) -> f64 {
+    let texture_color: Vector3<f64> = match &payload.texture {
+        None => Vector3::new(0.0, 0.0, 0.0),
+        Some(texture) => texture.getColorBilinear(u,v), // Do modification here
+    };
+    texture_color.norm()
 }
 
 pub fn bump_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
@@ -271,7 +286,7 @@ pub fn bump_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
 
     let p = 150.0;
 
-    let normal = payload.normal;
+    let mut normal = payload.normal;
     let point = payload.view_pos;
     let color = payload.color;
 
@@ -286,6 +301,17 @@ pub fn bump_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     // dV = kh * kn * (h(u,v+1/h)-h(u,v))
     // Vector ln = (-dU, -dV, 1)
     // Normal n = normalize(TBN * ln)
+
+    let t = Vector3::new(normal.x * normal.y / (normal.x * normal.x + normal.z * normal.z).sqrt(), (normal.x * normal.x + normal.z * normal.z).sqrt(), normal.z * normal.y / (normal.x * normal.x + normal.z * normal.z).sqrt());
+    let b = normal.cross(&t);
+    let TBN = Matrix3::from_columns(&[t,b,normal]);
+
+    let u = payload.tex_coords.x;
+    let v = payload.tex_coords.y;
+    let dU = kh * kn * (h(payload, u + 1.0 / payload.texture.clone().unwrap().width as f64, v) - h(payload, u, v));
+    let dV = kh * kn *(h(payload, u, v + 1.0 / payload.texture.clone().unwrap().height as f64) - h(payload, u, v));
+    let ln = Vector3::new(-dU, -dV, 1.0);
+    normal = (TBN * ln).normalize();
 
     let mut result_color = Vector3::zeros();
     result_color = normal;
@@ -312,8 +338,8 @@ pub fn displacement_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
 
     let p = 150.0;
 
-    let normal = payload.normal;
-    let point = payload.view_pos;
+    let mut normal = payload.normal.normalize();
+    let mut point = payload.view_pos;
     let color = payload.color;
 
     let (kh, kn) = (0.2, 0.1);
@@ -329,12 +355,35 @@ pub fn displacement_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
     // Position p = p + kn * n * h(u,v)
     // Normal n = normalize(TBN * ln)
 
+    let t = Vector3::new(normal.x * normal.y / (normal.x * normal.x + normal.z * normal.z).sqrt(), (normal.x * normal.x + normal.z * normal.z).sqrt(), normal.z * normal.y / (normal.x * normal.x + normal.z * normal.z).sqrt());
+    let b = normal.cross(&t);
+    let TBN = Matrix3::from_columns(&[t,b,normal]);
+
+    let u = payload.tex_coords.x;
+    let v = payload.tex_coords.y;
+    let dU = kh * kn * (h(payload, u + 1.0 / payload.texture.clone().unwrap().width as f64, v) - h(payload, u, v));
+    let dV = kh * kn *(h(payload, u, v + 1.0 / payload.texture.clone().unwrap().height as f64) - h(payload, u, v));
+    let ln = Vector3::new(-dU, -dV, 1.0);
+    point = point + normal * kn * h(payload, u , v);
+    normal = (TBN * ln).normalize();
+
     let mut result_color = Vector3::zeros();
     for light in lights {
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
+        let l = (light.position - point).normalize();
+        let v = (eye_pos - point).normalize();
+        let h = (l + v).normalize();
+        let n = normal.normalize();
 
-
+        let cos_theta = l.dot(&n);
+        let diffusely_reflected_light = elem_mul(kd, light.intensity / length_squared(light.position - point)) * cos_theta.max(0.0);
+        result_color += diffusely_reflected_light;
+        let cos_alpha = h.dot(&n);
+        let specularly_reflected_light = elem_mul(ks, light.intensity / length_squared(light.position - point)) * cos_alpha.max(0.0).powf(p);
+        result_color += specularly_reflected_light;
+        let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
+        result_color += reflected_ambient_light;
     }
 
     result_color * 255.0
