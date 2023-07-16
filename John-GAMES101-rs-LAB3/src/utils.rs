@@ -201,9 +201,10 @@ pub fn phong_fragment_shader(payload: &FragmentShaderPayload) -> V3f {
         let cos_alpha = h.dot(&n);
         let specularly_reflected_light = elem_mul(ks, light.intensity / length_squared(light.position - point)) * cos_alpha.max(0.0).powf(p);
         result_color += specularly_reflected_light;
+        let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
+        result_color += reflected_ambient_light;
     }
-    let reflected_ambient_light = elem_mul(ka,amb_light_intensity);
-    result_color += reflected_ambient_light;
+
     result_color * 255.0
 }
 
