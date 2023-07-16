@@ -9,7 +9,7 @@ use crate::triangle::Triangle;
 type V3f = Vector3<f64>;
 type M4f = Matrix4<f64>;
 
-pub(crate) fn gt_view_matrix(eye_pos: V3f) -> M4f {
+pub(crate) fn get_view_matrix(eye_pos: V3f) -> M4f {
     let mut view: M4f = Matrix4::identity();
     view[(0, 3)] = -eye_pos[0];
     view[(1, 3)] = -eye_pos[1];
